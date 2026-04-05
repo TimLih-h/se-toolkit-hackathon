@@ -1,152 +1,89 @@
 # Holiday Agent
 
-AI-powered holiday reminder agent — ask about holidays in natural language and get instant answers.
-
-## Demo
-
-**List all holidays:**
-```
-$ nanobot agent -c nanobot/config.json -m "Show me all holidays"
-
-Here are all the holidays stored in the database:
-
-🌍 International
-| Date    | Holiday                     |
-|---------|-----------------------------|
-| Jan 1   | New Year's Day              |
-| Feb 14  | Valentine's Day             |
-| Mar 8   | International Women's Day   |
-...
-
-🏳️ National
-| Date    | Holiday                     |
-|---------|-----------------------------|
-| May 9   | Victory Day                 |
-| Jun 12  | Russia Day                  |
-...
-
-11 holidays in total.
-```
-
-**Add a new holiday:**
-```
-$ nanobot agent -c nanobot/config.json -m "Add my birthday on July 15 as personal"
-
-Done! I've added your birthday on July 15 as a personal holiday. 🎂
-```
-
-**Find the nearest holiday:**
-```
-$ nanobot agent -c nanobot/config.json -m "What's the nearest holiday?"
-
-The nearest upcoming holiday is Labour Day on May 1, which is 26 days away. 🎉
-```
-
-**Check this week:**
-```
-$ nanobot agent -c nanobot/config.json -m "Any holidays this week?"
-
-There's one holiday this week: April Fools' Day (April 1).
-```
+AI-powered holiday reminder agent -- ask about holidays in natural language and get instant answers.
 
 ## Product Context
 
-**End users:** Students and team members who need to track upcoming holidays and important dates without manually checking calendars.
+**End users:** Students and team members who need to track upcoming holidays without checking calendars.
 
-**Problem:** People forget upcoming holidays and need a quick way to check dates or add new ones — opening a calendar app is too slow for a simple question like "what's the next holiday?"
+**Problem:** People forget holidays. Opening a calendar app for a simple question is too slow.
 
-**Solution:** A conversational AI agent that understands natural language requests and manages a holiday database. Just ask in plain English — no commands to memorize.
+**Solution:** A conversational AI agent -- just ask in plain English, no commands to memorize.
+
+## Architecture
+
+- **Backend:** FastAPI LMS server (port 42002)
+- **Database:** PostgreSQL (port 5432)
+- **LLM Proxy:** qwen-code-api (port 42005) -- OpenAI-compatible endpoint for Qwen models
+- **Webchat:** Browser-based chat UI with calendar, dashboard, ICS export (port 8083)
 
 ## Features
 
 ### Implemented
-- **List holidays** with category grouping (national, international, professional, personal)
-- **Add holidays** via natural language with automatic category detection
-- **Remove holidays** by exact name
-- **Nearest upcoming holidays** with days-away countdown
-- **This week check** — are there any holidays Mon-Sun?
-- **Category filtering** — "Show me national holidays only"
-- **Formatted output** — tables, emojis, grouped by category
-- **Dockerized deployment** — all services run via docker-compose
 
-### Not yet implemented
-- Proactive scheduled notifications (cron-based reminders)
-- Web chat interface (currently CLI-only)
-- Recurring holidays (e.g., "every second Monday")
-- Multi-user support with personal calendars
+**Chat:**
+- List holidays with category grouping
+- Add holidays via 3-step flow (name -> date -> category)
+- Remove holidays by name
+- Find nearest upcoming holidays with countdown
+- Check this week for holidays
+- Category filtering (national, international, professional, personal)
+- Strict holiday-only topic restriction
+
+**Web UI:**
+- Dashboard as default landing page
+- Visual calendar with month navigation
+- Per-user holiday data (isolated via cookies)
+- Export to .ics file (Google/Apple Calendar)
+- Dark theme by default
+- Responsive layout with sticky header and input bar
+
+**Infrastructure:**
+- Dockerized (4 services)
+- MIT License
+
+### Not Yet Implemented
+- Proactive cron-based notifications
+- Mobile app
+- Recurring holidays
 
 ## Usage
 
-### Quick query (one-shot)
-```bash
-cd /root/se-toolkit-hackathon
-PATH=~/.local/bin:$PATH uv run --project nanobot nanobot agent \
-  -c nanobot/config.json -m "Show me all holidays"
-```
+### Web Interface (recommended)
+1. Open http://VM_IP:8083 in your browser
+2. **Dashboard** -- statistics, countdown, charts
+3. **Calendar** -- browse months, click holidays for descriptions
+4. **Chat** -- ask questions in natural language
+5. **Export** -- download .ics file for Google/Apple Calendar
 
-### Interactive session
-```bash
-cd /root/se-toolkit-hackathon
-PATH=~/.local/bin:$PATH uv run --project nanobot nanobot agent \
-  -c nanobot/config.json
-# Then ask questions naturally:
-# "What holidays are coming up?"
-# "Add Teacher's Day on October 5th"
-# "Any national holidays this month?"
-```
+### Example queries
+- Show me all holidays
+- What is the nearest holiday?
+- Any holidays this week?
+- Add Teachers Day on October 5 as professional
 
 ## Deployment
 
-**OS:** Ubuntu 24.04 (same as university VMs)
+**OS:** Ubuntu 24.04
 
-**Requirements:**
-- Docker + Docker Compose
-- Qwen OAuth credentials (via `/qwen_auth` in the autochecker Telegram bot)
-- Python 3.14 + uv (for CLI testing)
-
-### Step-by-step
-
-1. **Clone the repository:**
-```bash
-git clone https://github.com/TimLih-h/se-toolkit-hackathon.git
-cd se-toolkit-hackathon
-```
-
-2. **Create environment file:**
-```bash
-cp .env.docker.example .env.docker.secret
-# Edit .env.docker.secret and set your values:
-#   - QWEN_CODE_API_KEY (from autochecker bot)
-#   - POSTGRES_PASSWORD
-#   - LMS_API_KEY
-```
-
-3. **Authenticate Qwen Code API:**
-Run `/qwen_auth` in the autochecker Telegram bot to push OAuth credentials to your VM.
-
-4. **Start all services:**
-```bash
-docker compose --env-file .env.docker.secret up -d --build
-```
-
-5. **Verify services:**
-```bash
-curl -s http://localhost:42002/docs          # Backend Swagger UI (200)
-curl -s http://localhost:42005/health        # LLM proxy (should show "healthy")
-docker ps                                    # All 4 containers running
-```
-
-6. **Test the agent:**
-```bash
-PATH=~/.local/bin:$PATH uv run --project nanobot nanobot agent \
-  -c nanobot/config.json -m "Show me all holidays"
-```
+1. Clone: `git clone https://github.com/TimLih-h/se-toolkit-hackathon.git`
+2. Create `.env.docker.secret` with your QWEN_CODE_API_KEY
+3. Run `/qwen_auth` in the autochecker Telegram bot
+4. Start: `docker compose --env-file .env.docker.secret up -d --build`
+5. Open http://VM_IP:8083
 
 ### Services
-
 | Service | Port | Purpose |
 |---------|------|---------|
 | Backend | 42002 | FastAPI LMS server |
-| Qwen Code API | 42005 | LLM proxy (OpenAI-compatible) |
-| Nanobot Gateway | 8082 | AI agent (CLI + webchat) |
+| Qwen Code API | 42005 | LLM proxy |
+| Webchat | 8083 | Browser-based UI |
 | PostgreSQL | 5432 | Database |
+
+## Per-User Data
+
+Each visitor gets their own holiday database via browser cookie. First visit creates a unique ID with a copy of 11 base holidays. Changes only affect that user's data.
+
+## Links
+
+- **GitHub:** https://github.com/TimLih-h/se-toolkit-hackathon
