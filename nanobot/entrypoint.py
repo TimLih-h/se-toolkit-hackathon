@@ -79,6 +79,20 @@ def main():
         "args": ["-m", "mcp_holidays"],
     }
 
+    # Webchat channel (for browser-based chat UI)
+    webchat_host = os.environ.get("NANOBOT_WEBCHAT_HOST", "0.0.0.0")
+    webchat_port = os.environ.get("NANOBOT_WEBCHAT_PORT", "8083")
+    webchat_key = os.environ.get("NANOBOT_ACCESS_KEY", "")
+    if webchat_key:
+        config["channels"] = config.get("channels", {})
+        config["channels"]["webchat"] = {
+            "enabled": True,
+            "host": webchat_host,
+            "port": int(webchat_port),
+            "allowFrom": ["*"],
+            "apiKey": webchat_key,
+        }
+
     # Write resolved config
     with open(resolved_path, "w") as f:
         json.dump(config, f, indent=2)

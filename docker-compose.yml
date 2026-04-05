@@ -1,4 +1,24 @@
 services:
+  postgres:
+    image: postgres:18.3-alpine
+    restart: unless-stopped
+    networks:
+      - app-network
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-lms}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/lms_backend/data/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lms"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./backend
@@ -27,32 +47,12 @@ services:
       - AUTOCHECKER_API_PASSWORD=
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=lms
-      - DB_USER=postgres
+      - DB_NAME=${POSTGRES_DB:-lms}
+      - DB_USER=${POSTGRES_USER:-postgres}
       - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
     depends_on:
       postgres:
         condition: service_healthy
-
-  postgres:
-    image: postgres:18.3-alpine
-    restart: unless-stopped
-    networks:
-      - app-network
-    environment:
-      - POSTGRES_DB=lms
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/src/lms_backend/data/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d lms"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   qwen-code-api:
     build:
@@ -68,12 +68,12 @@ services:
       - PORT=8080
       - ADDRESS=0.0.0.0
       - DEFAULT_MODEL=coder-model
-      - LOG_LEVEL=info
-      - MAX_RETRIES=3
+      - LOG_LEVEL=error
+      - MAX_RETRIES=5
       - RETRY_DELAY_MS=1000
       - QWEN_CODE_AUTH_USE=true
       - LOG_REQUESTS=true
-      - QWEN_CODE_API_KEY=${QWEN_CODE_API_KEY:-}
+      - QWEN_CODE_API_KEY=${QWEN_CODE_API_KEY:-my-secret-qwen-key}
     healthcheck:
       test:
         - CMD
@@ -83,7 +83,7 @@ services:
           import urllib.request
           req = urllib.request.Request(
               'http://localhost:8080/health',
-              headers={'X-API-Key': '${QWEN_CODE_API_KEY:-}'}
+              headers={'X-API-Key': '${QWEN_CODE_API_KEY:-my-secret-qwen-key}'}
           )
           urllib.request.urlopen(req)
       interval: 30s
@@ -107,7 +107,7 @@ services:
       - ./nanobot/workspace/TOOLS.md:/app/nanobot/workspace/TOOLS.md
       - ./nanobot/workspace/skills:/app/nanobot/workspace/skills
     environment:
-      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_API_KEY=${QWEN_CODE_API_KEY:-my-secret-qwen-key}
       - LLM_API_BASE_URL=http://qwen-code-api:8080/v1
       - LLM_API_MODEL=coder-model
       - NANOBOT_LMS_BACKEND_URL=http://backend:8000
@@ -115,8 +115,10 @@ services:
       - NANOBOT_GATEWAY_CONTAINER_ADDRESS=0.0.0.0
       - NANOBOT_GATEWAY_CONTAINER_PORT=8082
     depends_on:
-      - backend
-      - qwen-code-api
+      backend:
+        condition: service_started
+      qwen-code-api:
+        condition: service_healthy
 
 volumes:
   postgres_data:
