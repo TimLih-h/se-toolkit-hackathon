@@ -37,3 +37,5 @@ node_modules/
 .git/
 .env.docker.secret
 nanobot/workspace/sessions/
+testuser_*
+mcp/mcp-holidays/data/users/
