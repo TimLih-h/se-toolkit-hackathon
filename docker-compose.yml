@@ -1,0 +1,127 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      additional_contexts:
+        workspace: .
+    restart: unless-stopped
+    networks:
+      - app-network
+    ports:
+      - "42002:8000"
+    environment:
+      - NAME=lms-backend
+      - DEBUG=false
+      - ADDRESS=0.0.0.0
+      - PORT=8000
+      - RELOAD=false
+      - UVICORN_HOST=0.0.0.0
+      - UVICORN_PORT=8000
+      - UVICORN_RELOAD=false
+      - CORS_ORIGINS=["*"]
+      - LMS_API_KEY=${LMS_API_KEY:-secret-key}
+      - BACKEND_ENABLE_INTERACTIONS=true
+      - BACKEND_ENABLE_LEARNERS=true
+      - AUTOCHECKER_API_URL=
+      - AUTOCHECKER_API_LOGIN=
+      - AUTOCHECKER_API_PASSWORD=
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=lms
+      - DB_USER=postgres
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18.3-alpine
+    restart: unless-stopped
+    networks:
+      - app-network
+    environment:
+      - POSTGRES_DB=lms
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/lms_backend/data/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lms"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  qwen-code-api:
+    build:
+      context: ./qwen-code-api
+    restart: unless-stopped
+    networks:
+      - app-network
+    ports:
+      - "42005:8080"
+    volumes:
+      - ~/.qwen:/mnt/qwen-creds:ro
+    environment:
+      - PORT=8080
+      - ADDRESS=0.0.0.0
+      - DEFAULT_MODEL=coder-model
+      - LOG_LEVEL=info
+      - MAX_RETRIES=3
+      - RETRY_DELAY_MS=1000
+      - QWEN_CODE_AUTH_USE=true
+      - LOG_REQUESTS=true
+      - QWEN_CODE_API_KEY=${QWEN_CODE_API_KEY:-}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - "-c"
+        - |
+          import urllib.request
+          req = urllib.request.Request(
+              'http://localhost:8080/health',
+              headers={'X-API-Key': '${QWEN_CODE_API_KEY:-}'}
+          )
+          urllib.request.urlopen(req)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  nanobot:
+    build:
+      context: .
+      dockerfile: nanobot/Dockerfile
+    restart: unless-stopped
+    networks:
+      - app-network
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./nanobot/workspace/AGENTS.md:/app/nanobot/workspace/AGENTS.md
+      - ./nanobot/workspace/MEMORY.md:/app/nanobot/workspace/MEMORY.md
+      - ./nanobot/workspace/SOUL.md:/app/nanobot/workspace/SOUL.md
+      - ./nanobot/workspace/TOOLS.md:/app/nanobot/workspace/TOOLS.md
+      - ./nanobot/workspace/skills:/app/nanobot/workspace/skills
+    environment:
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_API_BASE_URL=http://qwen-code-api:8080/v1
+      - LLM_API_MODEL=coder-model
+      - NANOBOT_LMS_BACKEND_URL=http://backend:8000
+      - NANOBOT_LMS_API_KEY=${LMS_API_KEY:-secret-key}
+      - NANOBOT_GATEWAY_CONTAINER_ADDRESS=0.0.0.0
+      - NANOBOT_GATEWAY_CONTAINER_PORT=8082
+    depends_on:
+      - backend
+      - qwen-code-api
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    name: app-network
+    attachable: true

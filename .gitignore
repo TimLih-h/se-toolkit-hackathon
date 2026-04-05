@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env files (secrets)
+.env
+.env.*
+!.env.docker.example
+
+# uv
+uv.lock
+
+# Node
+node_modules/
+
+# Docker
+*.log
+
+# Git
+.git/
+.env.docker.secret
+nanobot/workspace/sessions/

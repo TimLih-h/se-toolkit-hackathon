@@ -1,0 +1,62 @@
+[
+  {
+    "name": "New Year's Day",
+    "month": 1,
+    "day": 1
+  },
+  {
+    "name": "Valentine's Day",
+    "month": 2,
+    "day": 14
+  },
+  {
+    "name": "International Women's Day",
+    "month": 3,
+    "day": 8
+  },
+  {
+    "name": "April Fools' Day",
+    "month": 4,
+    "day": 1
+  },
+  {
+    "name": "Labour Day",
+    "month": 5,
+    "day": 1
+  },
+  {
+    "name": "Victory Day",
+    "month": 5,
+    "day": 9
+  },
+  {
+    "name": "Russia Day",
+    "month": 6,
+    "day": 12
+  },
+  {
+    "name": "Halloween",
+    "month": 10,
+    "day": 31
+  },
+  {
+    "name": "Unity Day",
+    "month": 11,
+    "day": 4
+  },
+  {
+    "name": "Christmas",
+    "month": 12,
+    "day": 25
+  },
+  {
+    "name": "New Year's Eve",
+    "month": 12,
+    "day": 31
+  },
+  {
+    "name": "Victory Day Parade",
+    "month": 5,
+    "day": 10
+  }
+]
