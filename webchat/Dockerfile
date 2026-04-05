@@ -2,6 +2,6 @@ FROM python:3.14-slim-bookworm
 WORKDIR /app
 RUN pip install --no-cache-dir fastapi uvicorn httpx
 COPY webchat/app.py /app/app.py
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data /app/data/users && chmod 777 /app/data /app/data/users
 EXPOSE 8083
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8083"]
