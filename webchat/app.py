@@ -12,7 +12,7 @@ from pathlib import Path
 from email.utils import formatdate
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 app = FastAPI()
 
@@ -251,6 +251,17 @@ def generate_ics(uid: str):
             f"DESCRIPTION:{cat}: {desc}",
             f"CATEGORIES:{cat}",
             f"UID:holiday-{item['name'].lower().replace(' ','-')}@holidayagent",
+            # Reminders: 1 day before and 1 hour before
+            "BEGIN:VALARM",
+            "TRIGGER:-P1D",
+            "ACTION:DISPLAY",
+            f"DESCRIPTION:Reminder: {name} is tomorrow!",
+            "END:VALARM",
+            "BEGIN:VALARM",
+            "TRIGGER:-PT1H",
+            "ACTION:DISPLAY",
+            f"DESCRIPTION:Reminder: {name} starts in 1 hour!",
+            "END:VALARM",
             "END:VEVENT",
         ])
     lines.append("END:VCALENDAR")
@@ -519,6 +530,7 @@ a:hover{text-decoration:underline}
     <button onclick="tab('chat')">&#128172; Chat</button>
     <button onclick="tab('cal')">&#128197; Calendar</button>
     <button class="on" onclick="tab('dash')">&#128202; Dashboard</button>
+    <button id="notif-btn" onclick="toggleNotif()" title="Enable notifications">&#128276;</button>
   </div>
 </div>
 
@@ -654,6 +666,39 @@ function startAdd(){
 m("Hi! I'm your Holiday Agent &#127881;<br>Ask about upcoming holidays or add new ones!",false);
 loadDash();
 
+// ── Browser Push Notifications ──
+let swReg=null;
+async function toggleNotif(){
+  if(!('Notification' in window)){alert('Notifications not supported');return}
+  if(Notification.permission==='granted'){checkAndNotify();return}
+  const p=await Notification.requestPermission();
+  if(p==='granted'){
+    document.getElementById('notif-btn').style.color='var(--green)';
+    document.getElementById('notif-btn').style.borderColor='var(--green)';
+    swReg=await navigator.serviceWorker.register('/sw.js');
+    navigator.serviceWorker.controller||await new Promise(r=>{navigator.serviceWorker.oncontrollerchange=r;});
+    swReg.active.postMessage('start');
+    checkAndNotify();
+  }
+}
+async function checkAndNotify(){
+  try{
+    const r=await fetch('/api/notify/check');
+    const d=await r.json();
+    for(const h of(d.holidays||[])){
+      new Notification('Holiday Agent',{body:h.body||''});
+    }
+    if(!d.holidays||!d.holidays.length){
+      new Notification('Holiday Agent',{body:'No upcoming holidays in the next 3 days.'});
+    }
+  }catch(e){}
+}
+if('Notification' in window && Notification.permission==='granted'){
+  document.getElementById('notif-btn').style.color='var(--green)';
+  document.getElementById('notif-btn').style.borderColor='var(--green)';
+  navigator.serviceWorker.register('/sw.js').then(r=>{swReg=r;r.active.postMessage('start')});
+}
+
 // ── Calendar ──
 function initCal(){
   const now=new Date();calYear=now.getFullYear();calMonth=now.getMonth()+1;
@@ -705,7 +750,9 @@ async function loadDash(){
   }).join('');
   const upcomingHTML=d.upcoming.map(h=>{
     const desc=DESCRIPTIONS[h.name]||'';
-    return `<li><div><b>${h.name}</b> <span style="color:var(--text2);font-size:.75rem">(${h.category||''})</span><br><span style="font-size:.75rem;color:var(--text2);font-style:italic">${desc}</span></div><span class="daway">${h.days_away}d</span></li>`;
+    const mNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dateStr=mNames[h.month-1]+' '+h.day;
+    return `<li><div><b>${h.name}</b> <span style="color:var(--text2);font-size:.75rem">(${h.category||''})</span><br><span style="font-size:.72rem;color:var(--accent)">${dateStr}</span> <span style="font-size:.75rem;color:var(--text2);font-style:italic">${desc}</span></div><span class="daway">${h.days_away}d</span></li>`;
   }).join('');
   const nearest=d.nearest?`<div class="countdown"><div class="holiday-name">Next: ${d.nearest.name}</div><div class="days">${d.nearest.days_away}</div><div class="label">days away</div>${d.nearest.description?`<div class="desc">"${d.nearest.description}"</div>`:''}</div>`:'';
   document.getElementById('dash-content').innerHTML=`
@@ -785,3 +832,83 @@ async def ics_endpoint(request: Request):
             "Last-Modified": formatdate(usegmt=True),
         },
     )
+
+
+# ── Service Worker ──────────────────────────────────────────────────────
+SW_JS = """
+const CHECK_INTERVAL = 30 * 60 * 1000;
+let lastChecked = {};
+
+self.addEventListener('push', e => {
+  const d = e.data ? e.data.json() : {};
+  self.registration.showNotification(d.title || 'Holiday Agent', {
+    body: d.body || '',
+    icon: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎉</text></svg>'
+  });
+});
+
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', () => self.clients.claim());
+
+async function checkHolidays() {
+  try {
+    const r = await fetch('/api/notify/check');
+    const d = await r.json();
+    for (const h of d.holidays || []) {
+      const key = h.name + h.days_away;
+      if (!lastChecked[key]) {
+        lastChecked[key] = true;
+        self.registration.showNotification('Holiday Agent', {
+          body: h.body || '',
+          icon: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎉</text></svg>'
+        });
+      }
+    }
+  } catch(e) {}
+}
+
+self.addEventListener('message', e => {
+  if (e.data === 'start') {
+    checkHolidays();
+    setInterval(checkHolidays, CHECK_INTERVAL);
+  }
+});
+"""
+
+
+@app.get("/sw.js")
+async def service_worker():
+    return Response(content=SW_JS, media_type="application/javascript")
+
+
+@app.get("/api/notify/check")
+async def notify_check(request: Request):
+    """Check for upcoming holidays and return notification data."""
+    uid = _get_uid(request)
+    items = _load(uid)
+    today = date.today()
+    result = []
+    for item in items:
+        try:
+            d = date(today.year, item["month"], item["day"])
+        except ValueError:
+            continue
+        delta = (d - today).days
+        if delta < 0:
+            try:
+                d = date(today.year + 1, item["month"], item["day"])
+                delta = (d - today).days
+            except ValueError:
+                continue
+        if delta < 0:
+            continue
+        # Notify for holidays within 3 days or today
+        if delta <= 3:
+            if delta == 0:
+                body = f"🎉 Today is {item['name']}!"
+            elif delta == 1:
+                body = f"🔔 Tomorrow is {item['name']}!"
+            else:
+                body = f"📅 {item['name']} is in {delta} days ({d.strftime('%b %d')})"
+            result.append({"name": item["name"], "days_away": delta, "body": body})
+    return JSONResponse(content={"holidays": result})
