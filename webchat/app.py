@@ -543,6 +543,7 @@ a:hover{text-decoration:underline}
       <button onclick="s('What is the nearest holiday?')">&#128197; Next holiday</button>
       <button onclick="s('Any holidays this week?')">&#128198; This week</button>
       <button onclick="startAdd()">➕ Add</button>
+      <button onclick="startRemove()">🗑️ Remove</button>
     </div>
     <div class="inp">
       <input id="i" placeholder="Ask about holidays..." onkeydown="if(event.key==='Enter')send()">
@@ -663,40 +664,68 @@ function startAdd(){
   m("Let's add a new holiday! What should it be called?",false);
   i.focus();
 }
+function startRemove(){
+  const r=prompt('Enter the exact holiday name to remove:');
+  if(r&&r.trim()){s('Remove '+r.trim())}
+}
 m("Hi! I'm your Holiday Agent &#127881;<br>Ask about upcoming holidays or add new ones!",false);
 loadDash();
 
-// ── Browser Push Notifications ──
-let swReg=null;
+// ── In-Page Notifications (works everywhere, no browser permission needed) ──
+let notifActive=false, notifTimer=null, notifSeen={};
+function showToast(title,body,color){
+  let bar=document.getElementById('notif-bar');
+  if(!bar){
+    bar=document.createElement('div');
+    bar.id='notif-bar';
+    bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(135deg,#1a3a1a,#1f6feb);color:#fff;padding:14px 20px 14px 20px;display:flex;align-items:center;justify-content:space-between;font-size:.9rem;box-shadow:0 4px 20px rgba(0,0,0,.4);transform:translateY(-100%);transition:transform .3s ease';
+    bar.innerHTML='<div><b id="notif-title"></b><br><span id="notif-body" style="opacity:.85"></span></div><button onclick="this.parentElement.style.transform=\'translateY(-100%)\'" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.8rem">✕</button>';
+    document.body.prepend(bar);
+  }
+  bar.querySelector('#notif-title').textContent=title;
+  bar.querySelector('#notif-body').textContent=body;
+  bar.style.transform='translateY(0)';
+  setTimeout(()=>bar.style.transform='translateY(-100%)',8000);
+}
+
 async function toggleNotif(){
-  if(!('Notification' in window)){alert('Notifications not supported');return}
-  if(Notification.permission==='granted'){checkAndNotify();return}
-  const p=await Notification.requestPermission();
-  if(p==='granted'){
+  try{
+    if(notifActive){
+      notifActive=false;clearInterval(notifTimer);notifSeen={};
+      document.getElementById('notif-btn').innerHTML='&#128276;';
+      document.getElementById('notif-btn').style.color='';
+      document.getElementById('notif-btn').style.borderColor='';
+      showToast('Notifications','Turned off','#666');
+      return;
+    }
+    notifActive=true;notifSeen={};
+    document.getElementById('notif-btn').innerHTML='&#128274;';
     document.getElementById('notif-btn').style.color='var(--green)';
     document.getElementById('notif-btn').style.borderColor='var(--green)';
-    swReg=await navigator.serviceWorker.register('/sw.js');
-    navigator.serviceWorker.controller||await new Promise(r=>{navigator.serviceWorker.oncontrollerchange=r;});
-    swReg.active.postMessage('start');
-    checkAndNotify();
-  }
+    showToast('Notifications','Checking for upcoming holidays...','var(--green)');
+    checkNow();
+    notifTimer=setInterval(checkNow,30000);
+  }catch(e){showToast('Error',e.message,'var(--red)')}
 }
-async function checkAndNotify(){
+async function checkNow(){
   try{
     const r=await fetch('/api/notify/check');
     const d=await r.json();
+    let count=0;
     for(const h of(d.holidays||[])){
-      new Notification('Holiday Agent',{body:h.body||''});
+      const key=h.name+h.days_away;
+      if(!notifSeen[key]){
+        notifSeen[key]=true;count++;
+        showToast('Holiday Agent',h.body||'');
+      }
     }
-    if(!d.holidays||!d.holidays.length){
-      new Notification('Holiday Agent',{body:'No upcoming holidays in the next 3 days.'});
+    if(count===0 && !notifSeen._init){
+      notifSeen._init=true;
+      if(d.holidays&&d.holidays.length===0){
+        showToast('Holiday Agent','No upcoming holidays in the next 3 days.');
+      }
     }
   }catch(e){}
-}
-if('Notification' in window && Notification.permission==='granted'){
-  document.getElementById('notif-btn').style.color='var(--green)';
-  document.getElementById('notif-btn').style.borderColor='var(--green)';
-  navigator.serviceWorker.register('/sw.js').then(r=>{swReg=r;r.active.postMessage('start')});
 }
 
 // ── Calendar ──
@@ -752,7 +781,7 @@ async function loadDash(){
     const desc=DESCRIPTIONS[h.name]||'';
     const mNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const dateStr=mNames[h.month-1]+' '+h.day;
-    return `<li><div><b>${h.name}</b> <span style="color:var(--text2);font-size:.75rem">(${h.category||''})</span><br><span style="font-size:.72rem;color:var(--accent)">${dateStr}</span> <span style="font-size:.75rem;color:var(--text2);font-style:italic">${desc}</span></div><span class="daway">${h.days_away}d</span></li>`;
+    return `<li><div><b>${h.name}</b> <span style="color:var(--text2);font-size:.75rem">(${h.category||''})</span><br><span style="font-size:.72rem;color:var(--accent)">${dateStr}</span> <span style="font-size:.75rem;color:var(--text2);font-style:italic">${desc}</span></div><span style="display:flex;align-items:center;gap:8px"><span class="daway">${h.days_away}d</span><button onclick="delHoliday('${h.name.replace(/'/g,"\\'")}')" style="background:var(--surface2);border:1px solid var(--border);color:var(--red);border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:.75rem;line-height:1" title="Delete this holiday">✕</button></span></li>`;
   }).join('');
   const nearest=d.nearest?`<div class="countdown"><div class="holiday-name">Next: ${d.nearest.name}</div><div class="days">${d.nearest.days_away}</div><div class="label">days away</div>${d.nearest.description?`<div class="desc">"${d.nearest.description}"</div>`:''}</div>`:'';
   document.getElementById('dash-content').innerHTML=`
@@ -770,6 +799,24 @@ async function downloadICS(){
   const blob=new Blob([text],{type:'text/calendar'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download='holidays.ics';a.click();URL.revokeObjectURL(url);
+}
+
+// ── Delete holiday ──
+async function delHoliday(name){
+  if(!confirm('Delete "'+name+'"?'))return;
+  try{
+    // Switch to chat, send delete command
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+    document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
+    document.getElementById('v-chat').classList.add('on');
+    document.querySelectorAll('.tabs button')[0].classList.add('on');
+    m('Remove '+name,true);
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'Remove '+name,session_id:sid})});
+    const d=await r.json();
+    m(d.response,false);
+    // Refresh dashboard
+    loadDash();
+  }catch(e){m('Error: '+e.message,false)}
 }
 
 // ── Holiday descriptions ──
