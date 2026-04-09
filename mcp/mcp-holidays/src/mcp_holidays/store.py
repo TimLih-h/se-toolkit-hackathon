@@ -8,6 +8,20 @@ from pathlib import Path
 from typing import Any
 
 
+MONTH_NAMES = [
+    "", "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
+
+CATEGORY_DESC = {
+    "national": "A national holiday celebrated",
+    "international": "An internationally celebrated holiday",
+    "professional": "A professional observance honoring",
+    "personal": "A personal reminder for",
+    "general": "A special day for",
+}
+
+
 class HolidayStore:
     """Read/write holidays from a JSON file with category support."""
 
@@ -20,15 +34,27 @@ class HolidayStore:
     def list_all(self) -> list[dict[str, Any]]:
         return self._load()
 
+    @staticmethod
+    def _auto_description(name: str, month: int, day: int, category: str) -> str:
+        """Generate a short description if none provided."""
+        month_name = MONTH_NAMES[month] if 1 <= month <= 12 else ""
+        cat_text = CATEGORY_DESC.get(category, CATEGORY_DESC["general"])
+        return f"{cat_text} {name}, observed on {month_name} {day}."
+
     def add(
-        self, name: str, month: int, day: int, category: str = "general"
+        self, name: str, month: int, day: int, category: str = "general",
+        description: str = ""
     ) -> dict[str, Any]:
         items = self._load()
+        desc = description.strip() if description else ""
+        if not desc:
+            desc = self._auto_description(name, month, day, category)
         entry = {
             "name": name,
             "month": month,
             "day": day,
             "category": category,
+            "description": desc,
         }
         items.append(entry)
         self._save(items)

@@ -86,9 +86,14 @@ def holidays_list(uid: str):
     return {"holidays": items, "count": len(items)}
 
 
-def holidays_add(uid: str, name: str, month: int, day: int, category: str = "general"):
+def holidays_add(uid: str, name: str, month: int, day: int, category: str = "general", description: str = ""):
     items = _load(uid)
-    entry = {"name": name, "month": month, "day": day, "category": category}
+    if not description:
+        month_names = ["","January","February","March","April","May","June","July","August","September","October","November","December"]
+        cat_texts = {"national":"A national holiday celebrated","international":"An internationally celebrated holiday","professional":"A professional observance honoring","personal":"A personal reminder for","general":"A special day for"}
+        mn = month_names[month] if 1 <= month <= 12 else ""
+        description = f"{cat_texts.get(category, cat_texts['general'])} {name}, observed on {mn} {day}."
+    entry = {"name": name, "month": month, "day": day, "category": category, "description": description}
     items.append(entry)
     _save(uid, items)
     return {"added": entry}
@@ -282,7 +287,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "holidays_add",
-            "description": "Add a new holiday. Requires name, month (1-12), day (1-31), optional category.",
+            "description": "Add a new holiday. Requires name, month (1-12), day (1-31), optional category and optional short description.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -290,6 +295,7 @@ TOOLS = [
                     "month": {"type": "integer", "minimum": 1, "maximum": 12, "description": "Month number"},
                     "day": {"type": "integer", "minimum": 1, "maximum": 31, "description": "Day of month"},
                     "category": {"type": "string", "description": "national, international, professional, or personal", "default": "general"},
+                    "description": {"type": "string", "description": "Short 1-sentence description. Leave empty to auto-generate.", "default": ""},
                 },
                 "required": ["name", "month", "day"],
             },
@@ -333,7 +339,7 @@ TOOLS = [
 
 TOOL_FUNCTIONS = {
     "holidays_list": lambda uid, _: holidays_list(uid),
-    "holidays_add": lambda uid, a: holidays_add(uid, a["name"], a["month"], a["day"], a.get("category", "general")),
+    "holidays_add": lambda uid, a: holidays_add(uid, a["name"], a["month"], a["day"], a.get("category", "general"), a.get("description", "")),
     "holidays_nearest": lambda uid, a: holidays_nearest(uid, a.get("limit", 5), a.get("category")),
     "holidays_this_week": lambda uid, _: holidays_this_week(uid),
     "holidays_remove": lambda uid, a: holidays_remove(uid, a["name"]),
@@ -777,13 +783,14 @@ async function loadDash(){
     const pct=Math.round(cnt/maxMonth*100);
     return `<div style="display:flex;align-items:center;gap:6px;font-size:.75rem"><span style="width:24px">${d.month_names[i]}</span><div class="bar" style="flex:1"><div class="bar-fill" style="width:${pct}%"></div></div><span style="width:16px;text-align:right;color:var(--text2)">${cnt}</span></div>`;
   }).join('');
+  const mNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const upcomingHTML=d.upcoming.map(h=>{
     const desc=DESCRIPTIONS[h.name]||'';
-    const mNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const dateStr=mNames[h.month-1]+' '+h.day;
     return `<li><div><b>${h.name}</b> <span style="color:var(--text2);font-size:.75rem">(${h.category||''})</span><br><span style="font-size:.72rem;color:var(--accent)">${dateStr}</span> <span style="font-size:.75rem;color:var(--text2);font-style:italic">${desc}</span></div><span style="display:flex;align-items:center;gap:8px"><span class="daway">${h.days_away}d</span><button onclick="delHoliday('${h.name.replace(/'/g,"\\'")}')" style="background:var(--surface2);border:1px solid var(--border);color:var(--red);border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:.75rem;line-height:1" title="Delete this holiday">✕</button></span></li>`;
   }).join('');
-  const nearest=d.nearest?`<div class="countdown"><div class="holiday-name">Next: ${d.nearest.name}</div><div class="days">${d.nearest.days_away}</div><div class="label">days away</div>${d.nearest.description?`<div class="desc">"${d.nearest.description}"</div>`:''}</div>`:'';
+  const nearestDate=d.nearest?mNames[d.nearest.month-1]+' '+d.nearest.day:'';
+  const nearest=d.nearest?`<div class="countdown"><div class="holiday-name">Next: ${d.nearest.name}</div><div class="days">${d.nearest.days_away}</div><div class="label">days away${nearestDate?' · '+nearestDate:''}</div>${d.nearest.description?`<div class="desc">"${d.nearest.description}"</div>`:''}</div>`:'';
   document.getElementById('dash-content').innerHTML=`
     ${nearest}
     <button class="ics-btn" onclick="downloadICS()"><span>&#128190;</span>Export all holidays to Calendar (.ics)</button>

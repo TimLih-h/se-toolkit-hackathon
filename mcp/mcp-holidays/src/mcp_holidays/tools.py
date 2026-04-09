@@ -28,6 +28,10 @@ class AddHolidayArgs(BaseModel):
         default="general",
         description="Category: national, international, professional, personal.",
     )
+    description: str = Field(
+        default="",
+        description="Short description of the holiday (1-2 sentences). Auto-generate if not provided.",
+    )
 
 
 class RemoveHolidayArgs(BaseModel):
@@ -69,10 +73,10 @@ async def _list_holidays(store: HolidayStore, _args: BaseModel) -> ToolPayload:
 
 async def _add_holiday(store: HolidayStore, args: BaseModel) -> ToolPayload:
     assert isinstance(args, AddHolidayArgs)
-    entry = store.add(args.name, args.month, args.day, category=args.category)
+    entry = store.add(args.name, args.month, args.day, category=args.category, description=args.description)
     return {
         "added": entry,
-        "message": f"Added '{entry['name']}' ({entry['category']}) on {entry['month']}/{entry['day']}",
+        "message": f"Added '{entry['name']}' ({entry['category']}) on {entry['month']}/{entry['day']}. {entry.get('description', '')}",
     }
 
 
@@ -111,7 +115,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "holidays_add",
-        "Add a new holiday to the database. Requires name, month (1-12), day (1-31), and optional category (national, international, professional, personal).",
+        "Add a new holiday to the database. Requires name, month (1-12), day (1-31), optional category (national, international, professional, personal), and optional short description. If description is empty, auto-generate a brief 1-sentence description based on the holiday name and category.",
         AddHolidayArgs,
         _add_holiday,
     ),
