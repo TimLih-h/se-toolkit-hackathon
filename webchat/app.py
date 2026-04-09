@@ -753,7 +753,7 @@ async function renderCal(){
     let h='';
     day.holidays.forEach(hd=>{
       const cat=(hd.category||'general').toLowerCase();
-      const desc=DESCRIPTIONS[hd.name]||'';
+      const desc=hd.description||DESCRIPTIONS[hd.name]||'';
       h+=`<div class="hd ${cat}" title="${hd.name}: ${desc}">${hd.name}</div>`;
     });
     el.innerHTML=`<div class="dn">${day.day}</div>`+h;
@@ -765,7 +765,7 @@ async function renderCal(){
 function showCalDesc(holidays){
   const el=document.getElementById('cal-desc');
   el.innerHTML=holidays.map(h=>{
-    const desc=DESCRIPTIONS[h.name]||'No description available.';
+    const desc=h.description||DESCRIPTIONS[h.name]||'No description available.';
     return `<div style="margin-bottom:12px"><b>${h.name}</b> (${h.category||'general'})<br><span style="font-size:.78rem;color:var(--text2)">${desc}</span></div>`;
   }).join('');
 }
@@ -785,7 +785,7 @@ async function loadDash(){
   }).join('');
   const mNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const upcomingHTML=d.upcoming.map(h=>{
-    const desc=DESCRIPTIONS[h.name]||'';
+    const desc=h.description||DESCRIPTIONS[h.name]||'';
     const dateStr=mNames[h.month-1]+' '+h.day;
     return `<li><div><b>${h.name}</b> <span style="color:var(--text2);font-size:.75rem">(${h.category||''})</span><br><span style="font-size:.72rem;color:var(--accent)">${dateStr}</span> <span style="font-size:.75rem;color:var(--text2);font-style:italic">${desc}</span></div><span style="display:flex;align-items:center;gap:8px"><span class="daway">${h.days_away}d</span><button onclick="delHoliday('${h.name.replace(/'/g,"\\'")}')" style="background:var(--surface2);border:1px solid var(--border);color:var(--red);border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:.75rem;line-height:1" title="Delete this holiday">✕</button></span></li>`;
   }).join('');
