@@ -27,7 +27,7 @@ Students and team members who need to track upcoming holidays without manually c
 People forget upcoming holidays and need a quick way to check dates or add new ones. Opening a calendar app for a simple question like "what's the next holiday?" is too slow and friction-heavy.
 
 ### Solution
-A conversational AI agent with a visual web UI. Just ask in plain English -- no commands to memorize. Each visitor gets their own personalized holiday database, isolated via browser cookies.
+A conversational AI agent with a visual web UI and notification system. Just ask in plain English -- no commands to memorize. Each visitor gets their own personalized holiday database, isolated via browser cookies.
 
 ## Features
 
